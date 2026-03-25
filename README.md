@@ -26,7 +26,7 @@ This project followed industry best practices, implementing optimized database q
 * **Secure Sessions:** JWT-based authentication with configurable expiration.
 * **Data Integrity:** Strict validation using Pydantic schemas.
 
-### 🎫 Ticket Lifecycle Management
+### Ticket Lifecycle Management
 * **Automated Workflow:** Creation, technician assignment, and status transitions (Open -> In Progress -> Closed).
 * **Internal Chat:** Real-time commenting system within each ticket for efficient communication.
 * **Audit Logs:** Automated tracking of status changes and ownership in the ticket history.
