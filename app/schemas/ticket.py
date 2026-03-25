@@ -27,3 +27,9 @@ comments = relationship("Comment", back_populates="ticket")
 
 class TicketUpdate(BaseModel):
     status: Optional[str] = None
+
+class TicketDashboard(BaseModel):
+    total: int
+    abertos: int
+    em_atendimento: int
+    fechados: int

@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 from app.models.ticket import Ticket
 from app.schemas.ticket import TicketCreate, TicketUpdate
+from sqlalchemy import func
 
 def create_ticket(db: Session, ticket: TicketCreate, user_id: int):
     db_ticket = Ticket(
@@ -17,22 +18,29 @@ def create_ticket(db: Session, ticket: TicketCreate, user_id: int):
 
 from typing import List # Adicione este import no topo se não tiver
 
+from typing import Optional # (Coloque lá no topo do arquivo se já não tiver)
+
 def get_tickets(
     db: Session, 
     skip: int = 0, 
-    limit: int = 100, 
-    status: str = None, 
-    creator_id: int = None
+    limit: int = 100,
+    status: Optional[str] = None,
+    creator_id: Optional[int] = None,
+    priority: Optional[str] = None  # <-- NOSSO NOVO FILTRO AQUI
 ):
     query = db.query(Ticket)
     
-    # Se passarmos um status (ex: "Aberto"), ele filtra
+    # Filtro 1: Por Status
     if status:
         query = query.filter(Ticket.status == status)
-    
-    # Se passarmos um creator_id, ele mostra só os chamados daquela pessoa
+        
+    # Filtro 2: Por Dono do Chamado (Segurança)
     if creator_id:
         query = query.filter(Ticket.creator_id == creator_id)
+        
+    # Filtro 3: Por Prioridade (Novo!)
+    if priority:
+        query = query.filter(Ticket.priority == priority)
         
     return query.offset(skip).limit(limit).all()
 
@@ -77,3 +85,24 @@ def update_ticket(db: Session, ticket_id: int, ticket_update: TicketUpdate):
     db.commit()
     db.refresh(db_ticket)
     return db_ticket
+
+def get_dashboard_metrics(db: Session):
+    # Fazemos UMA única consulta pedindo para o banco agrupar e contar por status
+    # O SQL gerado será algo como: SELECT status, COUNT(id) FROM tickets GROUP BY status;
+    status_counts = db.query(Ticket.status, func.count(Ticket.id)).group_by(Ticket.status).all()
+    
+    # Transforma o resultado (que é uma lista de tuplas) em um dicionário fácil de ler no Python
+    # Exemplo: {'Aberto': 10, 'Fechado': 2, 'Em Atendimento': 5}
+    counts_dict = dict(status_counts)
+    
+    # O total é simplesmente a soma de todos os valores contados
+    total = sum(counts_dict.values())
+    
+    # Montamos o dicionário final que bate com o nosso Schema 'TicketDashboard'
+    # O '.get("Status", 0)' serve para evitar erros caso não exista nenhum chamado com aquele status
+    return {
+        "total": total,
+        "abertos": counts_dict.get("Aberto", 0),
+        "em_atendimento": counts_dict.get("Em Atendimento", 0),
+        "fechados": counts_dict.get("Fechado", 0)
+    }

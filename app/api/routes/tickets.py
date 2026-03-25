@@ -1,11 +1,14 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from app.db.session import get_db
-from app.schemas.ticket import TicketCreate, TicketResponse, TicketUpdate
+from app.schemas.ticket import TicketCreate, TicketResponse, TicketUpdate, TicketDashboard
 from app.services import ticket_service
 from app.api.deps import get_current_user, RoleChecker
 from app.models.user import User
 from app.schemas.comment import CommentCreate
+from app.api import deps
+from app.models.user import User
+from typing import Optional
 
 from typing import List # Adicione este import no topo
 from fastapi import APIRouter, Depends, HTTPException, status # Adicione HTTPException e status aqui
@@ -28,24 +31,51 @@ def create_new_ticket(
 
 @router.get("/", response_model=List[TicketResponse])
 def read_tickets(
-    skip: int = 0, 
-    limit: int = 100, 
-    status: str = None, # Novo parâmetro opcional
-    mine: bool = False, # Novo parâmetro para ver "só os meus"
+    skip: int = 0,
+    limit: int = 100,
+    status: Optional[str] = None,
+    priority: Optional[str] = None, # Nosso filtro novo
+    mine: bool = False, # O seu filtro original mantido!
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    creator_id = current_user.id if mine else None
-    
+    # Trava de Segurança Nível Banco: 
+    # Cliente SEMPRE tem o creator_id travado no ID dele, não importa o que ele digite no Swagger.
+    if current_user.role == "cliente":
+        creator_id = current_user.id
+    else:
+        # Se for Técnico ou Admin, ele vê tudo (None), a não ser que ele marque a caixinha "mine=True"
+        creator_id = current_user.id if mine else None
+
+    # Chamamos o Service passando todos os filtros possíveis
     tickets = ticket_service.get_tickets(
-        db, 
-        skip=skip, 
-        limit=limit, 
-        status=status, 
+        db=db,
+        skip=skip,
+        limit=limit,
+        status=status,
+        priority=priority,
         creator_id=creator_id
     )
+    
     return tickets
 
+@router.get("/dashboard", response_model=TicketDashboard)
+def read_dashboard(
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user)
+):
+    """
+    Retorna as métricas gerais do sistema (Total de chamados, abertos, etc).
+    """
+    # Proteção: Clientes comuns não podem ver os números gerais da empresa
+    if current_user.role == "cliente":
+        raise HTTPException(
+            status_code=403, 
+            detail="Operação não permitida para o seu perfil."
+        )
+    
+    # Chama o nosso serviço que faz a contagem direto no banco de dados
+    return ticket_service.get_dashboard_metrics(db=db)
 
 @router.patch("/{ticket_id}/assign", response_model=TicketResponse)
 def assign_ticket(
