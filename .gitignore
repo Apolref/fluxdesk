@@ -1,0 +1,18 @@
+# Ambientes Virtuais
+venv/
+env/
+
+# Arquivos de Cache do Python
+__pycache__/
+*.pyc
+
+# Variáveis de Ambiente (NUNCA subir pro GitHub)
+.env
+
+# Banco de dados local (se houver)
+*.db
+*.sqlite3
+
+# Arquivos do Mac/Windows
+.DS_Store
+Thumbs.db
