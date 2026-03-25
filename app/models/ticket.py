@@ -23,3 +23,4 @@ class Ticket(Base):
     # Permite acessar os dados do usuário criador e técnico direto pelo ticket
     creator = relationship("User", foreign_keys=[creator_id])
     assignee = relationship("User", foreign_keys=[assignee_id])
+    comments = relationship("Comment", back_populates="ticket")

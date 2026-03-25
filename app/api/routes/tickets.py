@@ -1,13 +1,16 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from app.db.session import get_db
-from app.schemas.ticket import TicketCreate, TicketResponse
+from app.schemas.ticket import TicketCreate, TicketResponse, TicketUpdate
 from app.services import ticket_service
 from app.api.deps import get_current_user, RoleChecker
 from app.models.user import User
+from app.schemas.comment import CommentCreate
 
 from typing import List # Adicione este import no topo
 from fastapi import APIRouter, Depends, HTTPException, status # Adicione HTTPException e status aqui
+from app.schemas.comment import CommentCreate, CommentResponse
+from app.services import comment_service
 
 # Cria uma regra que só deixa passar quem for técnico ou admin
 allow_tech_admin = RoleChecker(["tecnico", "admin"])
@@ -43,17 +46,34 @@ def read_tickets(
     )
     return tickets
 
+
 @router.patch("/{ticket_id}/assign", response_model=TicketResponse)
 def assign_ticket(
     ticket_id: int, 
+    ticket_update: TicketUpdate, 
     db: Session = Depends(get_db),
-    # OLHA A MÁGICA AQUI:
-    current_user: User = Depends(allow_tech_admin) 
+    current_user: User = Depends(RoleChecker(["tecnico", "admin"]))
 ):
-    db_ticket = ticket_service.get_ticket_by_id(db, ticket_id=ticket_id)
+    # Atualiza o ticket normalmente
+    db_ticket = ticket_service.update_ticket(db, ticket_id=ticket_id, ticket_update=ticket_update)
     if not db_ticket:
         raise HTTPException(status_code=404, detail="Ticket não encontrado")
-    return ticket_service.update_ticket_status(db, db_ticket, "Em Atendimento", current_user.id)
+    
+    # --- A MÁGICA DO HISTÓRICO COMEÇA AQUI ---
+    # Se o status foi alterado, cria um comentário automático
+    if ticket_update.status:
+        mensagem = f"⚠️ O status do chamado foi alterado para: {ticket_update.status} pelo técnico."
+        comentario_automatico = CommentCreate(text=mensagem)
+        
+        comment_service.create_comment(
+            db=db,
+            comment=comentario_automatico,
+            ticket_id=ticket_id,
+            author_id=current_user.id
+        )
+    # -----------------------------------------
+
+    return db_ticket
 
 @router.patch("/{ticket_id}/close", response_model=TicketResponse)
 def close_ticket(
@@ -95,3 +115,37 @@ def get_tickets_stats(
     current_user: User = Depends(get_current_user)
 ):
     return ticket_service.get_ticket_stats(db)
+
+@router.post("/{ticket_id}/comments", response_model=CommentResponse)
+def add_comment(
+    ticket_id: int,
+    comment: CommentCreate,
+    db: Session = Depends(get_db),
+    # Qualquer usuário logado pode comentar (Cliente, Técnico ou Admin)
+    current_user: User = Depends(get_current_user) 
+):
+    # Primeiro verifica se o ticket existe
+    db_ticket = ticket_service.get_ticket_by_id(db, ticket_id=ticket_id)
+    if not db_ticket:
+        raise HTTPException(status_code=404, detail="Ticket não encontrado")
+    
+    # Cria o comentário passando o texto da requisição, o ID da URL e o ID do Token
+    return comment_service.create_comment(
+        db=db, 
+        comment=comment, 
+        ticket_id=ticket_id, 
+        author_id=current_user.id
+    )
+
+@router.get("/{ticket_id}/comments", response_model=List[CommentResponse])
+def get_comments(
+    ticket_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # Verifica se o ticket existe
+    db_ticket = ticket_service.get_ticket_by_id(db, ticket_id=ticket_id)
+    if not db_ticket:
+        raise HTTPException(status_code=404, detail="Ticket não encontrado")
+    
+    return comment_service.get_comments_by_ticket(db=db, ticket_id=ticket_id)

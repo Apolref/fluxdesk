@@ -2,6 +2,8 @@ from pydantic import BaseModel
 from datetime import datetime
 from typing import Optional
 
+from sqlalchemy.orm import relationship
+
 class TicketCreate(BaseModel):
     title: str
     description: str
@@ -21,3 +23,8 @@ class TicketResponse(BaseModel):
 
     class Config:
         from_attributes = True
+        
+comments = relationship("Comment", back_populates="ticket")
+
+class TicketUpdate(BaseModel):
+    status: Optional[str] = None

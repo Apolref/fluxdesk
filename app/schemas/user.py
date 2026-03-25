@@ -1,4 +1,5 @@
 from pydantic import BaseModel, EmailStr
+from sqlalchemy.orm import relationship
 
 class UserBase(BaseModel):
     email: EmailStr
@@ -16,3 +17,6 @@ class UserResponse(UserBase):
     class Config:
         from_attributes = True
         # Se você estiver usando uma versão mais antiga do Pydantic, talvez precise ser: orm_mode = True
+
+# Lembre-se de importar o relationship se não estiver lá: from sqlalchemy.orm import relationship
+comments = relationship("Comment", back_populates="author")

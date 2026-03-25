@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from app.models.ticket import Ticket
-from app.schemas.ticket import TicketCreate
+from app.schemas.ticket import TicketCreate, TicketUpdate
 
 def create_ticket(db: Session, ticket: TicketCreate, user_id: int):
     db_ticket = Ticket(
@@ -59,3 +59,21 @@ def get_ticket_stats(db: Session):
     # O comando correto é group_by (sem o 'code')
     stats = db.query(Ticket.status, func.count(Ticket.id)).group_by(Ticket.status).all()
     return {status: count for status, count in stats}
+
+def update_ticket(db: Session, ticket_id: int, ticket_update: TicketUpdate):
+    # Primeiro acha o ticket atual no banco
+    db_ticket = get_ticket_by_id(db, ticket_id=ticket_id)
+    if not db_ticket:
+        return None
+
+    # Pega os dados que vieram na requisição (ignorando os que o usuário não mandou)
+    # Se você estiver usando Pydantic v1, troque .model_dump() por .dict()
+    update_data = ticket_update.model_dump(exclude_unset=True)
+    
+    # Atualiza cada campo que foi modificado
+    for key, value in update_data.items():
+        setattr(db_ticket, key, value)
+        
+    db.commit()
+    db.refresh(db_ticket)
+    return db_ticket
