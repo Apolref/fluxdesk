@@ -7,12 +7,24 @@ services:
     restart: always
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_PASSWORD: postgresspassword
       POSTGRES_DB: fluxdesk_db
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+
+  # --- ADICIONE ESTA PARTE ABAIXO ---
+  app:
+    build: .
+    container_name: fluxdesk_app
+    ports:
+      - "8000:8000"
+    environment:
+      # Aqui a mágica: o host do banco é o nome do serviço 'db'
+      DATABASE_URL: postgresql://postgres:postgresspassword@db:5432/fluxdesk_db
+    depends_on:
+      - db
 
 volumes:
   postgres_data:
