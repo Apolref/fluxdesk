@@ -21,8 +21,7 @@ class TicketResponse(BaseModel):
     assignee_id: Optional[int]
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
         
 comments = relationship("Comment", back_populates="ticket")
 
